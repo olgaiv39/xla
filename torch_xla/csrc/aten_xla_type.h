@@ -627,6 +627,8 @@ class AtenXlaType {
       const at::Tensor& self, const at::Tensor& target,
       const at::Tensor& weight, int64_t reduction, int64_t ignore_index);
 
+  static at::Tensor nonzero(const at::Tensor& self);
+
   static at::Tensor norm(const at::Tensor& self, c10::optional<at::Scalar> p,
                          at::ScalarType dtype);
 

@@ -687,6 +687,8 @@ class XLATensor {
                                      xla::int64 reduction, int ignore_index,
                                      const XLATensor& total_weight);
 
+  static XLATensor nonzero(const XLATensor& input);
+
   static XLATensor norm(const XLATensor& input, c10::optional<at::Scalar> p,
                         c10::optional<at::ScalarType> dtype,
                         at::IntArrayRef dim, bool keepdim);

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "tensorflow/compiler/xla/client/xla_builder.h"
 #include "tensorflow/core/lib/gtl/array_slice.h"
 
@@ -53,5 +55,7 @@ xla::XlaOp CreateScatter(
     xla::int64 dim,
     const std::function<xla::XlaOp(const xla::XlaOp&, const xla::XlaOp&)>&
         combiner);
+
+std::vector<xla::XlaOp> BuildNonZero(const xla::XlaOp& input);
 
 }  // namespace torch_xla

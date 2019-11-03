@@ -9,6 +9,7 @@
 #include "tensorflow/compiler/xla/client/lib/math.h"
 #include "tensorflow/compiler/xla/client/lib/slicing.h"
 #include "tensorflow/compiler/xla/shape_util.h"
+#include "tensorflow/compiler/xla/util.h"
 #include "tensorflow/compiler/xla/xla_client/debug_macros.h"
 #include "tensorflow/compiler/xla/xla_client/util.h"
 #include "torch_xla/csrc/convert_ops.h"
@@ -209,6 +210,49 @@ xla::XlaOp XlaDenseScatter(
     }
     return result;
   });
+}
+
+std::vector<xla::XlaOp> BuildConditionIndices(const xla::XlaOp& condition) {
+  xla::Shape iota_shape = XlaHelpers::ShapeOfXlaOp(condition);
+  iota_shape.set_element_type(xla::PrimitiveType::S32);
+
+  xla::int64 flattened_size = xla::Product(iota_shape.dimensions());
+  xla::XlaOp reshaped_condition = xla::Reshape(condition, {flattened_size});
+  xla::XlaOp zeros = xla::ZerosLike(reshaped_condition);
+  xla::XlaOp zeros_int =
+      xla::ConvertElementType(zeros, xla::PrimitiveType::S32);
+  xla::XlaOp reshaped_condition_int =
+      xla::ConvertElementType(reshaped_condition, xla::PrimitiveType::S32);
+  xla::XlaOp compared = xla::ConvertElementType(
+      xla::Gt(reshaped_condition_int, zeros_int), xla::PrimitiveType::S32);
+  xla::XlaOp length = xla::ReduceAll(
+      compared, xla::Zero(condition.builder(), xla::PrimitiveType::S32),
+      xla::CreateScalarAddComputation(xla::PrimitiveType::S32,
+                                      condition.builder()));
+
+  std::vector<xla::XlaOp> to_sort = {reshaped_condition_int};
+  std::vector<xla::PrimitiveType> types_to_sort = {xla::PrimitiveType::S32};
+  for (xla::int64 axis = 0; axis < iota_shape.rank(); ++axis) {
+    xla::XlaOp iota = xla::Iota(condition.builder(), iota_shape, axis);
+    xla::XlaOp reshaped = xla::Reshape(iota, {flattened_size});
+    to_sort.push_back(reshaped);
+    types_to_sort.push_back(xla::PrimitiveType::S32);
+  }
+
+  xla::XlaOp sorted = xla::Sort(
+      to_sort,
+      xla::CreateScalarGtComputation(types_to_sort, condition.builder()),
+      /*dimension=*/0,
+      /*is_stable=*/true);
+  std::vector<xla::XlaOp> to_concat;
+  for (xla::int64 i = 0; i < iota_shape.rank(); ++i) {
+    xla::XlaOp index_single_dim = xla::GetTupleElement(sorted, i + 1);
+    to_concat.push_back(xla::Reshape(index_single_dim, {flattened_size, 1}));
+  }
+
+  xla::XlaOp result = xla::ConcatInDim(condition.builder(), to_concat, 1);
+  xla::XlaOp result_padded = xla::SetDimensionSize(result, length, 0);
+  return {result_padded, length};
 }
 
 }  // namespace
@@ -567,6 +611,12 @@ xla::XlaOp CreateScatter(
       input, scatter_indices, src_op,
       MakeScatterComputation(combiner, input_shape.element_type()),
       scatter_dnums);
+}
+
+std::vector<xla::XlaOp> BuildNonZero(const xla::XlaOp& input) {
+  xla::Shape input_shape = XlaHelpers::ShapeOfXlaOp(input);
+  return BuildConditionIndices(
+      xla::Ne(input, xla::Zero(input.builder(), input_shape.element_type())));
 }
 
 }  // namespace torch_xla

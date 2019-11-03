@@ -84,6 +84,22 @@ xla::int64 XlaHelpers::GetCanonicalPosition(
   return pos;
 }
 
+xla::int64 XlaHelpers::GetDynamicDimension(const xla::Shape& shape) {
+  xla::int64 dynamic_dimension = -1;
+  for (xla::int64 i = 0; i < shape.rank(); ++i) {
+    if (shape.is_dynamic_dimension(i)) {
+      XLA_CHECK(i == 0 || i == shape.rank() - 1)
+          << "Only most major or most minor dynamic dimension is supported: "
+          << i << " in " << shape;
+      XLA_CHECK(dynamic_dimension < 0)
+          << "Only one dynamic dimension is supported: " << i << " and "
+          << dynamic_dimension << " in " << shape;
+      dynamic_dimension = i;
+    }
+  }
+  return dynamic_dimension;
+}
+
 XlaHelpers::MinMax XlaHelpers::MinMaxValues(xla::PrimitiveType type) {
   switch (type) {
     case xla::PrimitiveType::S8:

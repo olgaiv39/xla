@@ -3720,6 +3720,24 @@ TEST_F(AtenXlaTensorTest, TestOneIndexTransfer) {
   }
 }
 
+TEST_F(AtenXlaTensorTest, TestNonzero) {
+  XLA_CPP_TEST_ENABLED("nonzero");
+
+  torch::Tensor a = torch::zeros({4, 2}, torch::TensorOptions(torch::kFloat));
+  a[0][1] = 1.0;
+  a[1][0] = 2.0;
+  a[3][1] = 3.0;
+  torch::Tensor b = torch::nonzero(a);
+  ForEachDevice([&](const torch::Device& device) {
+    torch::Tensor xla_a = CopyToDevice(a, device);
+    torch::Tensor xla_b = torch::nonzero(xla_a);
+    AllClose(b, xla_b);
+  });
+
+  ExpectCounterNotChanged("aten::.*", cpp_test::GetIgnoredCounters());
+  ExpectCounterChanged("xla::nonzero", cpp_test::GetIgnoredCounters());
+}
+
 TEST_F(AtenXlaTensorTest, TestMultiIndexHeadNull) {
   for (torch::ScalarType scalar_type :
        {torch::kFloat, torch::kByte, torch::kChar, torch::kShort, torch::kInt,

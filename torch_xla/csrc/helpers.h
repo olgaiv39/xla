@@ -147,6 +147,9 @@ class XlaHelpers {
       tensorflow::gtl::ArraySlice<const xla::int64> dimensions, xla::int64 dim,
       xla::int64 pos);
 
+  // Retrieves the dynamic dimension of an input shape, or returns -1 if none.
+  static xla::int64 GetDynamicDimension(const xla::Shape& shape);
+
   // Retrieves type's minimum and maximum values.
   static MinMax MinMaxValues(xla::PrimitiveType type);
 
